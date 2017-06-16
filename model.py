@@ -91,7 +91,7 @@ class DeepSpeech(nn.Module):
 
         rnns = []
         rnn = BatchRNN(input_size=rnn_input_size, hidden_size=rnn_hidden_size, rnn_type=rnn_type,
-                       bidirectional=bidirectional, batch_norm=False)
+                       bidirectional=bidirectional, batch_norm=True)
         rnns.append(('0', rnn))
         for x in range(nb_layers - 1):
             rnn = BatchRNN(input_size=rnn_hidden_size, hidden_size=rnn_hidden_size, rnn_type=rnn_type,
@@ -132,7 +132,7 @@ class DeepSpeech(nn.Module):
 
     @staticmethod
     def serialize(model, optimizer=None, epoch=None, iteration=None, loss_results=None,
-                  cer_results=None, wer_results=None, avg_loss=None, meta=None):
+                  val_loss_results = None, cer_results=None, wer_results=None, avg_loss=None, meta=None):
         model_is_cuda = next(model.parameters()).is_cuda
         model = model.module if model_is_cuda else model
         package = {
@@ -154,6 +154,7 @@ class DeepSpeech(nn.Module):
             package['iteration'] = iteration
         if loss_results is not None:
             package['loss_results'] = loss_results
+            package['val_loss_results'] = val_loss_results
             package['cer_results'] = cer_results
             package['wer_results'] = wer_results
         if meta is not None:
@@ -214,6 +215,7 @@ if __name__ == '__main__':
         epochs = package['epoch']
         print("  Epochs:           ", epochs)
         print("  Current Loss:      {0:.3f}".format(package['loss_results'][epochs - 1]))
+        print("  Current Validation Loss:      {0:.3f}".format(package['val_loss_results'][epochs - 1]))
         print("  Current CER:       {0:.3f}".format(package['cer_results'][epochs - 1]))
         print("  Current WER:       {0:.3f}".format(package['wer_results'][epochs - 1]))
 
