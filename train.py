@@ -84,8 +84,8 @@ def main():
     args = parser.parse_args()
     save_folder = args.save_folder
 
-    loss_results, cer_results, wer_results = torch.Tensor(args.epochs), torch.Tensor(args.epochs), torch.Tensor(
-        args.epochs)
+    loss_results, val_loss_results, cer_results, wer_results = torch.Tensor(args.epochs), torch.Tensor(args.epochs), torch.Tensor(
+        args.epochs), torch.Tensor(args.epochs)
     if args.visdom:
         from visdom import Visdom
         viz = Visdom()
@@ -168,12 +168,13 @@ def main():
         else:
             start_iter += 1
         avg_loss = int(package.get('avg_loss', 0))
-        loss_results, cer_results, wer_results = package['loss_results'], package[
-                'cer_results'], package['wer_results']
+        loss_results, val_loss_results, cer_results, wer_results = package['loss_results'], package[
+                'val_loss_results'], package['cer_results'], package['wer_results']
         if args.visdom and \
                         package['loss_results'] is not None and start_epoch > 0:  # Add previous scores to visdom graph
             x_axis = epochs[0:start_epoch]
-            y_axis = [loss_results[0:start_epoch], wer_results[0:start_epoch], cer_results[0:start_epoch]]
+            y_axis = [loss_results[0:start_epoch], val_loss_results[0:start_epoch], 
+                    wer_results[0:start_epoch], cer_results[0:start_epoch]]
             for x in range(len(viz_windows)):
                 viz_windows[x] = viz.line(
                     X=x_axis,
@@ -185,6 +186,7 @@ def main():
             for i in range(start_epoch):
                 info = {
                     'Avg Train Loss': loss_results[i],
+                    'Avg Val Loss': val_loss_results[i],
                     'Avg WER': wer_results[i],
                     'Avg CER': cer_results[i]
                 }
@@ -284,7 +286,7 @@ def main():
             epoch + 1, loss=avg_loss))
 
         start_iter = 0  # Reset start iteration for next epoch
-        total_cer, total_wer = 0, 0
+        val_loss, total_cer, total_wer = 0.0, 0, 0
         model.eval()
         for i, (data) in enumerate(test_loader):  # test
             inputs, targets, input_percentages, target_sizes = data
@@ -306,6 +308,22 @@ def main():
             seq_length = out.size(0)
             sizes = input_percentages.mul_(int(seq_length)).int()
 
+            # calculate validation loss
+            targets = Variable(targets, requires_grad=False)
+            target_sizes = Variable(target_sizes, requires_grad=False)
+            loss = criterion(out, targets, sizes, target_sizes)
+            loss = loss / inputs.size(0)  # average the loss by minibatch
+
+            loss_sum = loss.data.sum()
+            inf = float("inf")
+            if loss_sum == inf or loss_sum == -inf:
+                print("WARNING: received an inf loss, setting loss value to 0")
+                loss_value = 0
+            else:
+                loss_value = loss.data[0]
+
+            val_loss += loss_value
+
             decoded_output = decoder.decode(out.data, sizes)
             target_strings = decoder.process_strings(decoder.convert_to_strings(split_targets))
             wer, cer = 0, 0
@@ -322,13 +340,17 @@ def main():
         cer = total_cer / len(test_loader.dataset)
         wer *= 100
         cer *= 100
+        avg_val_loss = val_loss / len(test_loader.dataset)
+
         loss_results[epoch] = avg_loss
+        val_loss_results[epoch] = avg_val_loss
         wer_results[epoch] = wer
         cer_results[epoch] = cer
         print('Validation Summary Epoch: [{0}]\t'
+              'Average Validation Loss {val:.3f}\t'
               'Average WER {wer:.3f}\t'
               'Average CER {cer:.3f}\t'.format(
-            epoch + 1, wer=wer, cer=cer))
+            epoch + 1, val=avg_val_loss, wer=wer, cer=cer))
 
         if args.visdom:
             # epoch += 1
@@ -351,6 +373,7 @@ def main():
         if args.tensorboard:
             info = {
                 'Avg Train Loss': avg_loss,
+                'Avg Val Loss': avg_val_loss,
                 'Avg WER': wer,
                 'Avg CER': cer
             }
@@ -363,7 +386,7 @@ def main():
                     logger.histo_summary(tag + '/grad', to_np(value.grad), epoch + 1)
         if args.checkpoint:
             file_path = '%s/deepspeech_%d.pth.tar' % (save_folder, epoch + 1)
-            torch.save(DeepSpeech.serialize(model, optimizer=optimizer, epoch=epoch, loss_results=loss_results,
+            torch.save(DeepSpeech.serialize(model, optimizer=optimizer, epoch=epoch, loss_results=loss_results, val_loss_results = val_loss_results,
                                             wer_results=wer_results, cer_results=cer_results),
                        file_path)
         # anneal lr
