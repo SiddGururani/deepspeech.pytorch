@@ -291,7 +291,7 @@ def main():
         for i, (data) in enumerate(test_loader):  # test
             inputs, targets, input_percentages, target_sizes = data
 
-            inputs = Variable(inputs, volatile=True)
+            inputs = Variable(inputs, requires_grad=False)
 
             # unflatten targets
             split_targets = []
@@ -311,55 +311,7 @@ def main():
             # calculate validation loss
             targets = Variable(targets, requires_grad=False)
             target_sizes = Variable(target_sizes, requires_grad=False)
-            loss = criterion(out, targets, sizes, target_sizes)
-            loss = loss / inputs.size(0)  # average the loss by minibatch
-
-            loss_sum = loss.data.sum()
-            inf = float("inf")
-            if loss_sum == inf or loss_sum == -inf:
-                print("WARNING: received an inf loss, setting loss value to 0")
-                loss_value = 0
-            else:
-                loss_value = loss.data[0]
-
-            val_loss += loss_value
-
-            # calculate validation loss
-            targets = Variable(targets, requires_grad=False)
-            target_sizes = Variable(target_sizes, requires_grad=False)
-            loss = criterion(out, targets, sizes, target_sizes)
-            loss = loss / inputs.size(0)  # average the loss by minibatch
-
-            loss_sum = loss.data.sum()
-            inf = float("inf")
-            if loss_sum == inf or loss_sum == -inf:
-                print("WARNING: received an inf loss, setting loss value to 0")
-                loss_value = 0
-            else:
-                loss_value = loss.data[0]
-
-            val_loss += loss_value
-
-            # calculate validation loss
-            targets = Variable(targets, requires_grad=False)
-            target_sizes = Variable(target_sizes, requires_grad=False)
-            loss = criterion(out, targets, sizes, target_sizes)
-            loss = loss / inputs.size(0)  # average the loss by minibatch
-
-            loss_sum = loss.data.sum()
-            inf = float("inf")
-            if loss_sum == inf or loss_sum == -inf:
-                print("WARNING: received an inf loss, setting loss value to 0")
-                loss_value = 0
-            else:
-                loss_value = loss.data[0]
-
-            val_loss += loss_value
-
-            # calculate validation loss
-            targets = Variable(targets, requires_grad=False)
-            target_sizes = Variable(target_sizes, requires_grad=False)
-            loss = criterion(out, targets, sizes, target_sizes)
+            loss = criterion(out, targets, Variable(sizes, requires_grad = False), target_sizes)
             loss = loss / inputs.size(0)  # average the loss by minibatch
 
             loss_sum = loss.data.sum()
