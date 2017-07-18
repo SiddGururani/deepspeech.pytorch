@@ -169,6 +169,35 @@ class SpectrogramDataset(Dataset, SpectrogramParser):
     def __len__(self):
         return self.size
 
+class SpectrogramDatasetPrediction(Dataset, SpectrogramParser):
+    def __init__(self, audio_conf, manifest_filepath, normalize=False):
+        """
+        Dataset that loads tensors via a csv containing file paths to audio files. 
+        Each new line is a different sample. Example below:
+
+        /path/to/audio1.wav
+        ...
+
+        :param audio_conf: Dictionary containing the sample rate, window and the window length/stride in seconds
+        :param manifest_filepath: Path to manifest csv as describe above
+        :param normalize: Apply standard mean and deviation normalization to audio tensor
+        :param augment(default False):  Apply random tempo and gain perturbations
+        """
+        with open(manifest_filepath) as f:
+            ids = f.readlines()
+        ids = [x.strip() for x in ids]
+        self.ids = ids
+        self.size = len(ids)
+        super(SpectrogramDatasetPrediction, self).__init__(audio_conf, normalize, False)
+
+    def __getitem__(self, index):
+        sample = self.ids[index]
+        audio_path = sample
+        spect = self.parse_audio(audio_path)
+        return spect
+
+    def __len__(self):
+        return self.size
 
 def _collate_fn(batch):
     def func(p):
