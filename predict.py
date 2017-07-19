@@ -22,8 +22,8 @@ parser.add_argument('--model_path', default='models/deepspeech_final.pth.tar',
                     help='Path to model file created by training')
 parser.add_argument('--audio_path', default='audio.wav',
                     help='Audio file to predict on')
-parser.add_argument('--turns_path', default='turns.json',
-                    help='Turns json file for the utterances in audio file')
+parser.add_argument('--turns_path', default='',
+                    help='Turns json file for the utterances in audio file. Ignore if whole file should be processed in one go')
 parser.add_argument('--tmp_dir', default='./tmp',
                     help='Temporary directory to store individual turns\' audio')
 parser.add_argument('--batch_size', default=1, type=int,
@@ -60,8 +60,8 @@ def main():
         decoder = GreedyDecoder(labels, space_index=labels.index(' '), blank_index=labels.index('_'))
 
     duration = slice_audio(args.audio_path, args.turns_path, audio_conf['sample_rate'])
-
     turns_data = Dataset(audio_conf=audio_conf, manifest_filepath=os.path.join(args.tmp_dir,'manifest.tmp'), normalize=True)
+    
     turns_loader = DataLoader(turns_data, batch_size=args.batch_size, collate_fn=_collate_fn)
 
     t0 = time.time()
@@ -80,7 +80,7 @@ def main():
     # out = out.transpose(0, 1)  # TxNxH
     # decoded_output = decoder.decode(out.data)
     t1 = time.time()
-    print(decoded_output[0])
+    # print(decoded_output[0])
     print("Decoded {0:.2f} seconds of audio in {1:.2f} seconds".format(duration, t1-t0), file=sys.stderr)
     shutil.rmtree(args.tmp_dir)
 
@@ -88,8 +88,14 @@ def slice_audio(audio_path, turns_path, sr):
     tmp_dir = args.tmp_dir
     make_dir(tmp_dir)
     y, _ = librosa.load(audio_path, sr = sr)
-    with open(turns_path) as f:
-        turns = json.load(f)['turns']
+    duration = librosa.get_duration(y,sr)
+
+    if turns_path != '':
+        with open(turns_path) as f:
+            turns = json.load(f)['turns']
+    else:
+        # Make a fake turns json
+        turns = [{'start': 0.0, 'stop': duration}]
     with open(os.path.join(tmp_dir, 'manifest.tmp'),'w') as f:
         for i, turn in enumerate(turns):
             start = turn['start']
@@ -97,7 +103,7 @@ def slice_audio(audio_path, turns_path, sr):
             segment = y[int(start*sr):int(stop*sr)]
             write_audio(i, segment, sr, tmp_dir)
             f.write(os.path.join(tmp_dir, str(i)+'.wav\n'))
-    return librosa.get_duration(y,sr)
+    return duration
 
 def write_audio(name, y, sr, directory):
     audio_path = os.path.join(directory, str(name)+'.wav')
