@@ -4,7 +4,7 @@ import argparse
 import io
 import os
 
-import subprocess
+import soundfile as sf
 
 from utils import update_progress
 
@@ -36,11 +36,12 @@ size = len(files)
 for x in range(size):
     file_path = files[x]
     file_path = file_path.split(',')[0]
-    output = subprocess.check_output(
-        ['soxi -D \"%s\"' % file_path.strip()],
-        shell=True
-    )
-    duration = float(output)
+    try:
+        with sf.SoundFile(file_path.strip()) as f:
+            duration = len(f) / f.samplerate
+    except RuntimeError:
+        print('Buggy file: {}'.format(file_path))
+        continue
     if prune_min or prune_max:
         duration_fit = True
         if prune_min:
